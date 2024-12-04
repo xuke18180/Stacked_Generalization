@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+
+
+# Data files
+data/
+tmp_data/
+
+# Hydra
+outputs/
+
+# IDEs
+.vscode/
+
+
+# Weights and Biases
+wandb/
+
+# Model checkpoints
+checkpoints/
+*.pth
+*.pt
+

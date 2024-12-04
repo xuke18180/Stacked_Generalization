@@ -1,0 +1,19 @@
+# config/model/default.yaml
+base_learners:
+  - architecture: resnet18
+    pretrained: false
+    init_method: kaiming
+    init_params:
+      mode: fan_out
+      nonlinearity: relu
+  - architecture: resnet34
+    pretrained: false
+  - architecture: resnet50
+    pretrained: false
+
+meta_learner:
+  hidden_dims: [512, 256, 128]
+  dropout_rate: 0.5
+  
+image_features_dim: 256
+alpha: 1.0

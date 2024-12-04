@@ -1,0 +1,8 @@
+# config/dataset/imagenette.yaml
+name: "imagenette"
+num_classes: 10
+input_size: 224
+mean: [123.675, 116.28, 103.53] # might be wrong; check the actual values
+std: [58.395, 57.12, 57.375]
+train_dataset: "data/imagenette_train.ffcv"
+val_dataset: "data/imagenette_val.ffcv"

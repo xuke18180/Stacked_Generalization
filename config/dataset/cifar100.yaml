@@ -1,0 +1,8 @@
+# config/dataset/cifar100.yaml
+name: "cifar100"
+num_classes: 100
+input_size: 32
+mean: [129.304, 124.070, 112.434] # might be wrong; check the actual values
+std: [68.170, 65.392, 70.418]
+train_dataset: "data/cifar100_train.ffcv"
+val_dataset: "data/cifar100_val.ffcv"
