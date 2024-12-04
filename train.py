@@ -160,10 +160,9 @@ class Trainer:
     def train(self, model):
         # Setup criterion, optimizer, and scheduler
         criterion = nn.CrossEntropyLoss(label_smoothing=self.cfg.training.label_smoothing)
-        optimizer = torch.optim.SGD(
+        optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=self.cfg.training.lr,
-            momentum=self.cfg.training.momentum,
             weight_decay=self.cfg.training.weight_decay
         )
         
