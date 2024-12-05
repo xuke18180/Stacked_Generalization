@@ -2,7 +2,8 @@
 name: "cifar10"
 num_classes: 10
 input_size: 32
-mean: [125.307, 122.961, 113.8575]
-std: [51.5865, 50.847, 51.255]
+mean: [125.307, 122.961, 113.8575] 
+# std: [51.5865, 50.847, 51.255]
+std: [62.9932, 62.0887, 66.7048] 
 train_dataset: "${hydra:runtime.cwd}/data/cifar10_train.ffcv"
 val_dataset: "${hydra:runtime.cwd}/data/cifar10_val.ffcv"
