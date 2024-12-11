@@ -4,6 +4,7 @@ import torchvision.models as models
 from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
 from omegaconf import DictConfig
+from .resnet9 import ResNet9
 
 @dataclass
 class BaseModelConfig:
@@ -12,6 +13,21 @@ class BaseModelConfig:
     pretrained: bool = False
     init_method: Optional[str] = None
     init_params: Optional[Dict] = None
+
+def get_base_model(architecture, pretrained, num_classes):
+    # Handle ResNet9 specially
+    if architecture == "resnet9":
+        return ResNet9(num_classes=num_classes)
+    
+    # For all other architectures, use torchvision models
+    if hasattr(models, architecture):
+        weights = 'DEFAULT' if pretrained else None
+        return getattr(models, architecture)(
+            weights=weights,
+            num_classes=num_classes
+        )
+    
+    raise ValueError(f"Unknown architecture: {architecture}")
 
 @dataclass
 class MetaLearnerConfig:
@@ -28,29 +44,22 @@ class BaseLearner(nn.Module):
         super().__init__()
         self.config = config
         
-        # Initialize base architecture
-        if hasattr(models, config.architecture):
-            weights = 'DEFAULT' if config.pretrained else None
-            base_model = getattr(models, config.architecture)(
-                weights=weights,
-                num_classes=num_classes
-            )
+        # Load base model
+        base_model = get_base_model(config.architecture, config.pretrained, num_classes)
             
-            # Adjust input channels if needed
-            if in_channels != 3:
-                first_conv = list(base_model.modules())[1]
-                if isinstance(first_conv, nn.Conv2d):
-                    new_conv = nn.Conv2d(
-                        in_channels, 
-                        first_conv.out_channels,
-                        first_conv.kernel_size, 
-                        first_conv.stride,
-                        first_conv.padding,
-                        bias=False
-                    )
-                    base_model.conv1 = new_conv
-        else:
-            raise ValueError(f"Architecture {config.architecture} not found")
+        # Adjust input channels if needed
+        if in_channels != 3:
+            first_conv = list(base_model.modules())[1]
+            if isinstance(first_conv, nn.Conv2d):
+                new_conv = nn.Conv2d(
+                    in_channels, 
+                    first_conv.out_channels,
+                    first_conv.kernel_size, 
+                    first_conv.stride,
+                    first_conv.padding,
+                    bias=False
+                )
+                base_model.conv1 = new_conv
             
         self.model = base_model
         
@@ -68,6 +77,8 @@ class BaseLearner(nn.Module):
                     nn.init.uniform_(m.weight, **params)
                 elif self.config.init_method == 'kaiming':
                     nn.init.kaiming_normal_(m.weight, **params)
+                elif self.config.init_method == 'orthogonal':
+                    nn.init.orthogonal_(m.weight, **params)
     
     def forward(self, x):
         return self.model(x)

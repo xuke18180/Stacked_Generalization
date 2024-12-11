@@ -1,0 +1,12 @@
+# config/model/ffcv.yaml
+base_learners:
+  - architecture: resnet9  # New architecture type
+    pretrained: false
+    init_method: kaiming  # They don't specify special initialization
+
+meta_learner: 
+  hidden_dims: []
+  dropout_rate: 0
+
+image_features_dim: 128
+alpha: 1.0

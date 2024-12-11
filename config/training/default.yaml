@@ -1,0 +1,32 @@
+# config/training/default.yaml
+optimizer:
+  name: "adamw"  # or "sgd"
+  lr: 1e-3
+  weight_decay: 5e-4
+  # SGD specific
+  momentum: 0.9
+  nesterov: false
+  # AdamW specific
+  betas: [0.9, 0.999]
+  eps: 1e-8
+
+scheduler:
+  name: "onecycle"  # or "cosine"
+  # OneCycle specific
+  pct_start: 0.3
+  max_lr: 1e-3
+  div_factor: 25.0
+  final_div_factor: 1e4
+  # Cosine specific
+  T_max: 100  # usually set to num_epochs
+  eta_min: 0.0
+
+
+seed: 42
+epochs: 100
+batch_size: 512
+num_workers: 8
+label_smoothing: 0.1
+lr_tta: True
+mixed_precision: True
+gradient_clip: 1.0

@@ -2,7 +2,8 @@
 defaults:
   - _self_
   - dataset: cifar10
-  - model: default
+  - model: compare
+  - training: default
 
 hydra:
   run:
@@ -13,16 +14,3 @@ project:
   tags: ["baseline"]
   notes: "Initial training setup"
 
-training:
-  seed: 42
-  epochs: 200
-  batch_size: 512
-  num_workers: 8
-  lr: 1e-3
-  weight_decay: 5e-4
-  momentum: 0.9
-  label_smoothing: 0.1
-  lr_peak_epoch: 60
-  lr_tta: True  # Test time augmentation
-  mixed_precision: True
-  gradient_clip: 1.0

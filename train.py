@@ -15,8 +15,88 @@ from ffcv.transforms import RandomHorizontalFlip, Cutout, RandomTranslate, Conve
 from ffcv.transforms.common import Squeeze
 from ffcv.pipeline.operation import Operation
 import torchvision
+import numpy as np
 
 from models import create_model_from_config
+
+def create_optimizer(cfg: DictConfig, model_params):
+    """Create optimizer based on config."""
+    opt_cfg = cfg.training.optimizer
+    opt_name = opt_cfg.name.lower()
+    
+    if opt_name == "adamw":
+        return torch.optim.AdamW(
+            model_params,
+            lr=opt_cfg.lr,
+            weight_decay=opt_cfg.weight_decay,
+            betas=opt_cfg.betas,
+            eps=opt_cfg.eps
+        )
+    elif opt_name == "sgd":
+        return torch.optim.SGD(
+            model_params,
+            lr=opt_cfg.lr,
+            momentum=opt_cfg.momentum,
+            weight_decay=opt_cfg.weight_decay,
+            nesterov=opt_cfg.nesterov
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer: {opt_name}")
+    
+class TriangularLRSchedule:
+    """Custom triangular learning rate schedule implementation."""
+    def __init__(self, initial_lr: float, peak_lr: float, final_lr: float, 
+                 total_steps: int, peak_step: int):
+        self.schedule = np.interp(
+            np.arange(total_steps),
+            [0, peak_step, total_steps],
+            [initial_lr, peak_lr, final_lr]
+        )
+        self.total_steps = total_steps
+        
+    def __call__(self, step):
+        if step >= self.total_steps:
+            return float(self.schedule[-1])
+        return float(self.schedule[step])
+    
+    def __getstate__(self):
+        """Support proper serialization for state_dict."""
+        return self.__dict__
+
+def create_scheduler(cfg: DictConfig, optimizer, steps_per_epoch: int):
+    """Create learning rate scheduler based on config."""
+    sched_cfg = cfg.training.scheduler
+    sched_name = sched_cfg.name.lower()
+    
+    if sched_name == "custom_triangular":
+        total_steps = cfg.training.epochs * steps_per_epoch
+        peak_step = sched_cfg.peak_epoch * steps_per_epoch
+        schedule = TriangularLRSchedule(
+            initial_lr=sched_cfg.initial_lr,
+            peak_lr=sched_cfg.peak_lr,
+            final_lr=sched_cfg.final_lr,
+            total_steps=total_steps,
+            peak_step=peak_step
+        )
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
+    elif sched_name == "onecycle":
+        return torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=sched_cfg.max_lr,
+            epochs=cfg.training.epochs,
+            steps_per_epoch=steps_per_epoch,
+            pct_start=sched_cfg.pct_start,
+            div_factor=sched_cfg.div_factor,
+            final_div_factor=sched_cfg.final_div_factor
+        )
+    elif sched_name == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=sched_cfg.T_max,
+            eta_min=sched_cfg.eta_min
+        )
+    else:
+        raise ValueError(f"Unsupported scheduler: {sched_name}")
 
 class Trainer:
     def __init__(self, cfg: DictConfig):
@@ -157,23 +237,10 @@ class Trainer:
         
         return total_loss / len(self.val_loader), 100. * correct / total
 
-    def train(self, model):
-        # Setup criterion, optimizer, and scheduler
+    def train(self, model, callback=None):
         criterion = nn.CrossEntropyLoss(label_smoothing=self.cfg.training.label_smoothing)
-        optimizer = torch.optim.AdamW(
-            model.parameters(),
-            lr=self.cfg.training.lr,
-            weight_decay=self.cfg.training.weight_decay
-        )
-        
-        # Cosine annealing scheduler
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=self.cfg.training.lr,
-            epochs=self.cfg.training.epochs,
-            steps_per_epoch=len(self.train_loader),
-            pct_start=self.cfg.training.lr_peak_epoch / self.cfg.training.epochs
-        )
+        optimizer = create_optimizer(self.cfg, model.parameters())
+        scheduler = create_scheduler(self.cfg, optimizer, len(self.train_loader))
         
         # Prepare for distributed training
         model, optimizer, train_loader, scheduler = self.accelerator.prepare(
@@ -186,6 +253,9 @@ class Trainer:
                 model, optimizer, scheduler, epoch
             )
             val_loss, val_acc = self.validate(model, criterion)
+
+            if callback is not None:
+                callback(epoch, val_acc)
             
             if self.accelerator.is_main_process:
                 wandb.log({
@@ -205,6 +275,8 @@ class Trainer:
                     f'Train Acc: {train_acc:.2f}% | Val Loss: {val_loss:.3f} | '
                     f'Val Acc: {val_acc:.2f}%'
                 )
+        
+        return best_acc
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):
@@ -214,12 +286,11 @@ def main(cfg: DictConfig):
     # Initialize trainer
     trainer = Trainer(cfg)
     
-    # Model will be implemented later
+    # Create model
     model = create_model_from_config(cfg)
     
     # Train the model
     trainer.train(model)
-
 
 if __name__ == "__main__":
     main()

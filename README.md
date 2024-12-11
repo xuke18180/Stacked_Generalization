@@ -48,6 +48,16 @@ To train with default configuration:
 python train.py
 ```
 
+To train with ffcv configuration as in https://docs.ffcv.io/ffcv_examples/cifar10.html
+```bash
+python train.py model=ffcv training=ffcv
+```
+
+To do hyperparameter search: (using SGD optimizer):
+```bash
+python train.py search_space=sgd
+```
+
 Common configuration overrides:
 - `training.batch_size`: Batch size for training
 - `training.lr`: Learning rate

@@ -1,0 +1,51 @@
+# config/search_space/sgd.yaml
+optimizer:
+  name: "sgd"  # fixed
+  lr:
+    type: "float"
+    low: 0.01
+    high: 1.0
+    log: true
+  weight_decay:
+    type: "float"
+    low: 1e-5
+    high: 1e-3
+    log: true
+  momentum:
+    type: "float"
+    low: 0.85
+    high: 0.95
+  nesterov:
+    type: "categorical"
+    choices: [true, false]
+
+scheduler:
+  name:
+    type: "categorical"
+    choices: ["onecycle", "cosine"] # later we will add "custom_triangular"
+  pct_start:
+    type: "float"
+    low: 0.2
+    high: 0.4
+  div_factor:
+    type: "float"
+    low: 10.0
+    high: 50.0
+  final_div_factor:
+    type: "float"
+    low: 1e3
+    high: 1e4
+    log: true
+
+training:
+  batch_size:
+    type: "categorical"
+    choices: [128, 256, 512]
+  label_smoothing:
+    type: "float"
+    low: 0.05
+    high: 0.2
+  gradient_clip:
+    type: "float"
+    low: 0.1
+    high: 2.0

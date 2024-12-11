@@ -1,0 +1,24 @@
+# config/hyper_search_config.yaml
+defaults:
+  - _self_
+  - dataset: cifar10
+  - search_space: adamw  # or sgd
+  - model: default
+  - training: default
+
+hydra:
+  run:
+    dir: outputs/hyper_search/${search_space.optimizer.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+project:
+  name: "stacked-generalization-hypersearch"
+  tags: ["hypersearch"]
+  notes: "Hyperparameter optimization"
+
+optuna:
+  n_trials: 100
+  timeout: 72000  # 20 hours
+  n_startup_trials: 5
+  n_warmup_steps: 20
+  pruning_min_delta: 0.1  # minimum improvement required
+  pruning_patience: 5     # epochs to wait for improvement

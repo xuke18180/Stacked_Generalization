@@ -8,12 +8,12 @@ base_learners:
       nonlinearity: relu
   - architecture: resnet34
     pretrained: false
-  - architecture: resnet50
+  - architecture: resnet9 
     pretrained: false
 
 meta_learner:
   hidden_dims: [512, 256, 128]
   dropout_rate: 0.5
   
-image_features_dim: 256
+image_features_dim: 128
 alpha: 1.0

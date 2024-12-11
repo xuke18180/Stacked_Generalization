@@ -1,6 +1,6 @@
 # config/model/default.yaml
 base_learners:
-  - architecture: resnet50
+  - architecture: resnet18
     pretrained: false
 
 meta_learner:
