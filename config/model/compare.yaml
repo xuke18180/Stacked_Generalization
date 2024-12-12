@@ -8,4 +8,4 @@ meta_learner:
   dropout_rate: 0.5
   
 image_features_dim: 256
-alpha: 1.0
+alpha: 0.5

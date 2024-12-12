@@ -6,14 +6,24 @@ base_learners:
     init_params:
       mode: fan_out
       nonlinearity: relu
-  - architecture: resnet34
-    pretrained: false
+  # - architecture: resnet34
+  #   pretrained: false
   - architecture: resnet50
     pretrained: false
-
+  - architecture: allcnn_t
+    pretrained: false  
+    init_method: null  # Use PyTorch's default initialization
+    init_params:
+      c1: 96  # Number of filters for first convolutional layer
+      c2: 192  # Number of filters for subsequent layers
+      d: 0.3 # Dropout rate
+  - architecture: vit
+    pretrained: true 
+    init_method: null
+    init_params: {} 
 meta_learner:
   hidden_dims: [512, 256, 128]
-  dropout_rate: 0.5
+  dropout_rate: 0.3 
   
 image_features_dim: 256
-alpha: 1.0
+alpha: 0.5

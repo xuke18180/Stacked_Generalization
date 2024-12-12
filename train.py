@@ -91,7 +91,6 @@ class Trainer:
                 'label': label_pipeline
             }
         )
-    
     def train_epoch(self, model, optimizer, scheduler, epoch):
         model.train()
         total_loss = 0
@@ -128,7 +127,7 @@ class Trainer:
                 })
         
         return total_loss / len(self.train_loader), 100. * correct / total
-
+    
     def validate(self, model, criterion):
         model.eval()
         total_loss = 0
@@ -143,7 +142,6 @@ class Trainer:
                     outputs = model(images)
                     losses = model.compute_losses(outputs, targets)
                     loss = losses['total_loss']
-
                     if self.cfg.training.lr_tta:
                         outputs_flip = model(torch.flip(images, dims=[-1]))
                         losses_flip = model.compute_losses(outputs_flip, targets)
@@ -155,35 +153,56 @@ class Trainer:
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
         
-        return total_loss / len(self.val_loader), 100. * correct / total
-
+        return total_loss / len(self.val_loader), 100. * correct / total    
     def train(self, model):
-        # Setup criterion, optimizer, and scheduler
+        # Setup criterion
         criterion = nn.CrossEntropyLoss(label_smoothing=self.cfg.training.label_smoothing)
+        
+        # SGD optimizer
+        # optimizer = torch.optim.SGD(
+        #     model.parameters(),
+        #     lr=self.cfg.training.lr,
+        #     momentum=self.cfg.training.momentum,
+        #     weight_decay=self.cfg.training.weight_decay
+        # )
+
+        # AdamW optimizer
         optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=self.cfg.training.lr,
             weight_decay=self.cfg.training.weight_decay
         )
-        
         # Cosine annealing scheduler
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=self.cfg.training.lr,
-            epochs=self.cfg.training.epochs,
-            steps_per_epoch=len(self.train_loader),
-            pct_start=self.cfg.training.lr_peak_epoch / self.cfg.training.epochs
-        )
+        # scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #     optimizer,
+        #     max_lr=self.cfg.training.lr,
+        #     epochs=self.cfg.training.epochs,
+        #     steps_per_epoch=len(self.train_loader),
+        #     pct_start=self.cfg.training.lr_peak_epoch / self.cfg.training.epochs
+        # )   
         
+        # Cosine annealing with warm-up scheduler
+        total_steps = len(self.train_loader) * self.cfg.training.epochs
+        warmup_steps = int(self.cfg.training.warmup_fraction * total_steps)
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=self.cfg.training.T_0,
+            T_mult=self.cfg.training.T_mult
+        )
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step: step / warmup_steps if step < warmup_steps else 1.0
+        )
+
         # Prepare for distributed training
-        model, optimizer, train_loader, scheduler = self.accelerator.prepare(
-            model, optimizer, self.train_loader, scheduler
+        model, optimizer, train_loader, cosine_scheduler = self.accelerator.prepare(
+            model, optimizer, self.train_loader, cosine_scheduler
         )
         
         best_acc = 0
         for epoch in range(self.cfg.training.epochs):
             train_loss, train_acc = self.train_epoch(
-                model, optimizer, scheduler, epoch
+                model, optimizer, cosine_scheduler, epoch
             )
             val_loss, val_acc = self.validate(model, criterion)
             
@@ -205,6 +224,7 @@ class Trainer:
                     f'Train Acc: {train_acc:.2f}% | Val Loss: {val_loss:.3f} | '
                     f'Val Acc: {val_acc:.2f}%'
                 )
+
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")
 def main(cfg: DictConfig):

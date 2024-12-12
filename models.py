@@ -4,6 +4,7 @@ import torchvision.models as models
 from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
 from omegaconf import DictConfig
+from torchvision.models import vit_b_16
 
 @dataclass
 class BaseModelConfig:
@@ -18,6 +19,37 @@ class MetaLearnerConfig:
     """Configuration for meta learner"""
     hidden_dims: List[int]
     dropout_rate: float = 0.5
+    
+class allcnn_t(nn.Module):
+    def __init__(self, c1=96, c2=192):
+        super().__init__()
+        def convbn(ci, co, ksz, s=1, pz=0): 
+            return nn.Sequential(
+                nn.Conv2d(ci, co, ksz, stride=s, padding=pz),
+                nn.ReLU(True),
+                nn.BatchNorm2d(co))
+        d = 0.3 # Dropout rate
+        n_classes = 10 # 10 for CIFAR-10
+        pool_size = 8  # Pooling kernel size
+        self.m = nn.Sequential(
+            nn.Dropout(0.2),
+            convbn(3, c1, 3, 1, 1),
+            convbn(c1, c1, 3, 1, 1),
+            convbn(c1, c1, 3, 2, 1),
+            nn.Dropout(d),
+            convbn(c1, c2, 3, 1, 1),
+            convbn(c2, c2, 3, 1, 1),
+            convbn(c2, c2, 3, 2, 1),
+            nn.Dropout(d),
+            convbn(c2, c2, 3, 1, 1),
+            convbn(c2, c2, 3, 1, 1),
+            convbn(c2, n_classes, 1, 1),
+            nn.AvgPool2d(pool_size),  # Average pooling over 8x8
+            nn.Flatten()
+        )
+    
+    def forward(self, x):
+        return self.m(x)
 
 class BaseLearner(nn.Module):
     """Wrapper for base learners with flexible architecture"""
@@ -27,9 +59,21 @@ class BaseLearner(nn.Module):
                  in_channels: int = 3):
         super().__init__()
         self.config = config
-        
+         
+        if config.architecture == "allcnn_t":
+            self.model = allcnn_t(
+                c1=config.init_params.get('c1', 48),  # Default to 48
+                c2=config.init_params.get('c2', 96)   # Default to 96
+            )       
+        elif config.architecture == "vit":
+            self.upsample = nn.Upsample(size=(224, 224), mode="bilinear", align_corners=False)  # Upsample layer
+            base_model = vit_b_16(pretrained=config.pretrained)
+            base_model.heads.head = nn.Linear(
+              base_model.heads.head.in_features, num_classes  
+            )
+            self.model = base_model 
         # Initialize base architecture
-        if hasattr(models, config.architecture):
+        elif hasattr(models, config.architecture):
             weights = 'DEFAULT' if config.pretrained else None
             base_model = getattr(models, config.architecture)(
                 weights=weights,
@@ -49,10 +93,11 @@ class BaseLearner(nn.Module):
                         bias=False
                     )
                     base_model.conv1 = new_conv
+            self.model = base_model
         else:
             raise ValueError(f"Architecture {config.architecture} not found")
             
-        self.model = base_model
+        #self.model = base_model
         
         # Apply custom initialization if specified
         if config.init_method:
@@ -70,6 +115,8 @@ class BaseLearner(nn.Module):
                     nn.init.kaiming_normal_(m.weight, **params)
     
     def forward(self, x):
+        if self.config.architecture == "vit":
+            x = self.upsample(x)
         return self.model(x)
 
 class ImageFeatureExtractor(nn.Module):
@@ -100,6 +147,18 @@ class ImageFeatureExtractor(nn.Module):
     
     def forward(self, x):
         return self.features(x)
+
+class SpectralNormLinear(nn.Module):
+    def __init__(self, in_features, out_features):
+        super().__init__()
+        self.linear = nn.utils.spectral_norm(
+            nn.Linear(in_features, out_features)
+        )
+    
+    def forward(self, x):
+        return self.linear(x)
+
+# In MetaLearner, replacing nn.Linear with SpectralNormLinear
 
 class MetaLearner(nn.Module):
     """MLP-based meta-learner with configurable architecture"""
@@ -182,7 +241,7 @@ class StackedModel(nn.Module):
             
         # Stack base learner outputs
         stacked_logits = torch.cat(base_outputs, dim=1)
-        
+        # print(f"Base Learner Output Shape: {stacked_logits.shape}")
         # Get image features
         image_features = self.image_extractor(x)
         

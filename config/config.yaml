@@ -1,7 +1,7 @@
 # config/config.yaml
 defaults:
   - _self_
-  - dataset: cifar10
+  - dataset: cifar10 # cifar100
   - model: default
 
 hydra:
@@ -15,14 +15,23 @@ project:
 
 training:
   seed: 42
-  epochs: 200
-  batch_size: 512
-  num_workers: 8
-  lr: 1e-3
-  weight_decay: 5e-4
+  epochs: 100
+  batch_size: 256
+  num_workers: 4 # changed from 8  
+  lr: 5e-4
+  weight_decay: 1e-2
   momentum: 0.9
   label_smoothing: 0.1
-  lr_peak_epoch: 60
-  lr_tta: True  # Test time augmentation
+  lr_peak_epoch: 30 # 60 for 200 epochs
+  #pct_start: 0.3
+  lr_tta: False  # Test time augmentation
   mixed_precision: True
-  gradient_clip: 1.0
+  gradient_clip: 3.0 
+
+  # Warm-up settings
+  warmup_fraction: 0.1       # Fraction of total steps for the warm-up phase
+
+  # Cosine annealing warm restarts settings
+  T_0: 10                    # Number of epochs for the first restart
+  T_mult: 2                  # Multiplier for the number of epochs between restarts
+
