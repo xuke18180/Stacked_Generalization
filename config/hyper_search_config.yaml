@@ -2,7 +2,7 @@
 defaults:
   - _self_
   - dataset: cifar10
-  - search_space: adamw  # or sgd
+  - search_space: sgd  # or sgd
   - model: default
   - training: default
 
@@ -12,7 +12,7 @@ hydra:
 
 project:
   name: "stacked-generalization-hypersearch"
-  tags: ["hypersearch"]
+  tags: ["hypersearch-v3"]
   notes: "Hyperparameter optimization"
 
 optuna:

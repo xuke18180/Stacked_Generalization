@@ -11,7 +11,7 @@ class BaseModelConfig:
     """Configuration for base learners"""
     architecture: str
     pretrained: bool = False
-    init_method: Optional[str] = None
+    init_method: Optional[str] = "kaiming_fan_out"
     init_params: Optional[Dict] = None
 
 def get_base_model(architecture, pretrained, num_classes):
@@ -68,17 +68,18 @@ class BaseLearner(nn.Module):
             self._initialize_weights()
     
     def _initialize_weights(self):
-        params = self.config.init_params or {}
         for m in self.model.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
-                if self.config.init_method == 'normal':
-                    nn.init.normal_(m.weight, **params)
-                elif self.config.init_method == 'uniform':
-                    nn.init.uniform_(m.weight, **params)
-                elif self.config.init_method == 'kaiming':
-                    nn.init.kaiming_normal_(m.weight, **params)
+                if self.config.init_method == 'kaiming_fan_out':
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                elif self.config.init_method == 'kaiming_fan_in':
+                    nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
                 elif self.config.init_method == 'orthogonal':
-                    nn.init.orthogonal_(m.weight, **params)
+                    nn.init.orthogonal_(m.weight, gain=1.0)
+                elif self.config.init_method == 'xavier_uniform':
+                    nn.init.xavier_uniform_(m.weight) 
+        
+
     
     def forward(self, x):
         return self.model(x)

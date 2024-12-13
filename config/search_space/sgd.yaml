@@ -22,7 +22,7 @@ optimizer:
 scheduler:
   name:
     type: "categorical"
-    choices: ["onecycle", "cosine"] # later we will add "custom_triangular"
+    choices: ["onecycle", "cosine", "linear"]
   pct_start:
     type: "float"
     low: 0.2
@@ -36,6 +36,7 @@ scheduler:
     low: 1e3
     high: 1e4
     log: true
+
 
 training:
   batch_size:

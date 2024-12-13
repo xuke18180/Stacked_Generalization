@@ -43,46 +43,28 @@ def create_optimizer(cfg: DictConfig, model_params):
     else:
         raise ValueError(f"Unsupported optimizer: {opt_name}")
     
-class TriangularLRSchedule:
-    """Custom triangular learning rate schedule implementation."""
-    def __init__(self, initial_lr: float, peak_lr: float, final_lr: float, 
-                 total_steps: int, peak_step: int):
-        self.schedule = np.interp(
-            np.arange(total_steps),
-            [0, peak_step, total_steps],
-            [initial_lr, peak_lr, final_lr]
-        )
-        self.total_steps = total_steps
-        
-    def __call__(self, step):
-        if step >= self.total_steps:
-            return float(self.schedule[-1])
-        return float(self.schedule[step])
-    
-    def __getstate__(self):
-        """Support proper serialization for state_dict."""
-        return self.__dict__
 
 def create_scheduler(cfg: DictConfig, optimizer, steps_per_epoch: int):
     """Create learning rate scheduler based on config."""
     sched_cfg = cfg.training.scheduler
     sched_name = sched_cfg.name.lower()
+    total_steps = cfg.training.epochs * steps_per_epoch
     
-    if sched_name == "custom_triangular":
-        total_steps = cfg.training.epochs * steps_per_epoch
-        peak_step = sched_cfg.peak_epoch * steps_per_epoch
-        schedule = TriangularLRSchedule(
-            initial_lr=sched_cfg.initial_lr,
-            peak_lr=sched_cfg.peak_lr,
-            final_lr=sched_cfg.final_lr,
-            total_steps=total_steps,
-            peak_step=peak_step
+    if sched_name == "linear":
+        return torch.optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=cfg.training.optimizer.lr,
+            epochs=cfg.training.epochs,
+            steps_per_epoch=steps_per_epoch,
+            pct_start=sched_cfg.pct_start,
+            anneal_strategy='linear',
+            div_factor=sched_cfg.div_factor,
+            final_div_factor=sched_cfg.final_div_factor
         )
-        return torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
     elif sched_name == "onecycle":
         return torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
-            max_lr=sched_cfg.max_lr,
+            max_lr=cfg.training.optimizer.lr,
             epochs=cfg.training.epochs,
             steps_per_epoch=steps_per_epoch,
             pct_start=sched_cfg.pct_start,
@@ -92,7 +74,7 @@ def create_scheduler(cfg: DictConfig, optimizer, steps_per_epoch: int):
     elif sched_name == "cosine":
         return torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=sched_cfg.T_max,
+            T_max=total_steps,
             eta_min=sched_cfg.eta_min
         )
     else:
@@ -275,7 +257,7 @@ class Trainer:
                     f'Train Acc: {train_acc:.2f}% | Val Loss: {val_loss:.3f} | '
                     f'Val Acc: {val_acc:.2f}%'
                 )
-        
+        wandb.finish() 
         return best_acc
 
 @hydra.main(config_path="config", config_name="config", version_base="1.1")

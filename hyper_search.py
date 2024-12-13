@@ -10,6 +10,7 @@ import torch
 from train import Trainer
 from models import create_model_from_config
 from datetime import datetime
+import wandb
 
 class OptunaPruningCallback:
     def __init__(self, trial, patience=5, min_delta=0.1):
@@ -122,26 +123,36 @@ def save_best_config(study: optuna.Study, base_config: DictConfig, output_dir: s
 
 def objective(trial: optuna.Trial, base_config: DictConfig) -> float:
     """Objective function for Optuna optimization."""
-    # Create configuration for this trial
-    trial_config = create_trial_config(trial, base_config)
-    
-    # Initialize model and trainer
-    model = create_model_from_config(trial_config)
-    trainer = Trainer(trial_config)
-    
-    # Create pruning callback
-    pruning_callback = OptunaPruningCallback(
-        trial,
-        patience=base_config.optuna.pruning_patience,
-        min_delta=base_config.optuna.pruning_min_delta
-    )
-    
     try:
+        # Create configuration for this trial
+        trial_config = create_trial_config(trial, base_config)
+        
+        # Initialize model and trainer
+        model = create_model_from_config(trial_config)
+        trainer = Trainer(trial_config)
+        
+        # Create pruning callback
+        pruning_callback = OptunaPruningCallback(
+            trial,
+            patience=base_config.optuna.pruning_patience,
+            min_delta=base_config.optuna.pruning_min_delta
+        )
+        
         # Train and get best validation accuracy
         best_accuracy = trainer.train(model, callback=pruning_callback)
         return best_accuracy
     except optuna.TrialPruned:
-        raise
+        if wandb.run is not None:
+            wandb.finish()
+        raise  # Re-raise the pruning exception for Optuna to handle
+
+    except Exception as e:
+        # Handle any other exceptions
+        logging.error(f"Trial failed with error: {str(e)}")
+        if wandb.run is not None:
+            wandb.finish()
+        raise  
+
 
 @hydra.main(config_path="config", config_name="hyper_search_config")
 def main(cfg: DictConfig):

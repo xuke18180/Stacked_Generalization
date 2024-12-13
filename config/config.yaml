@@ -2,7 +2,7 @@
 defaults:
   - _self_
   - dataset: cifar10
-  - model: compare
+  - model: default 
   - training: default
 
 hydra:
