@@ -11,6 +11,7 @@ from train import Trainer
 from models import create_model_from_config
 from datetime import datetime
 import wandb
+from mock_model import MockModel, MockTrainer
 
 class OptunaPruningCallback:
     def __init__(self, trial, patience=5, min_delta=0.1):
@@ -71,7 +72,7 @@ def create_trial_config(trial: optuna.Trial, base_config: DictConfig) -> DictCon
     # Create trial configuration
     trial_dict = {
         'training': {
-            **process_params(search_space.training),
+            # **process_params(search_space.training),
             'optimizer': process_params(search_space.optimizer),
             'scheduler': process_params(search_space.scheduler)
         }
@@ -80,44 +81,75 @@ def create_trial_config(trial: optuna.Trial, base_config: DictConfig) -> DictCon
     # Merge with new config
     return OmegaConf.merge(new_config, trial_dict)
 
-def save_best_config(study: optuna.Study, base_config: DictConfig, output_dir: str):
+def save_best_config(study: optuna.Study, base_config: DictConfig):
     """Save the best configuration as YAML files."""
-    best_trial = study.best_trial
+    # Consider all trials that have produced at least one value
+    valid_trials = [t for t in study.trials 
+                   if t.state == optuna.trial.TrialState.COMPLETE or 
+                   (t.state == optuna.trial.TrialState.PRUNED and t.value is not None)]
+    
+    if not valid_trials:
+        logging.warning("No trials produced valid results")
+        results = {
+            "status": "failed",
+            "reason": "no_valid_results",
+            "n_trials": len(study.trials),
+            "optimizer_type": base_config.search_space.optimizer.name,
+            "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S")
+        }
+        
+        results_path = Path("search_results_failed.yaml")
+        with open(results_path, "w") as f:
+            yaml.dump(results, f, default_flow_style=False)
+            
+        logging.info(f"Failure results saved to {results_path}")
+        return
+
+    # Find best trial among all trials with valid results
+    best_trial = max(valid_trials, key=lambda t: t.value)
     best_params = best_trial.params
     
     # Reconstruct best config
-    best_config = create_trial_config(best_trial, base_config, base_config.search_space)
+    best_config = create_trial_config(best_trial, base_config)
     
-    # Save training config
-    training_config = {
-        "optimizer": OmegaConf.to_container(best_config.optimizer),
-        "scheduler": OmegaConf.to_container(best_config.scheduler),
-        "training": OmegaConf.to_container(best_config.training)
-    }
-    
-    output_dir = Path(output_dir)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    config_path = output_dir / f"best_training.yaml"
     
+    # Hydra automatically sets up the output directory
+    config_path = Path("best_training.yaml")
+    results_path = Path(f"search_results_{timestamp}.yaml")
+    
+    # Save config
     with open(config_path, "w") as f:
-        yaml.dump(training_config, f, default_flow_style=False)
+        yaml.dump(OmegaConf.to_container(best_config), f, default_flow_style=False)
     
     # Save search results
+    completed_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    pruned_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
+    
     results = {
+        "status": "success",
         "best_accuracy": best_trial.value,
         "best_params": best_params,
+        "best_trial_state": best_trial.state.name,
+        "best_trial_pruned_epoch": list(best_trial.intermediate_values.keys())[-1] if best_trial.state == optuna.trial.TrialState.PRUNED else None,
         "n_trials": len(study.trials),
+        "n_completed": len(completed_trials),
+        "n_pruned": len(pruned_trials),
+        "n_pruned_with_results": len([t for t in pruned_trials if t.value is not None]),
         "optimizer_type": base_config.search_space.optimizer.name,
         "timestamp": timestamp
     }
     
-    results_path = output_dir / f"search_results_{timestamp}.yaml"
     with open(results_path, "w") as f:
         yaml.dump(results, f, default_flow_style=False)
     
     # Log results
-    logging.info(f"Best trial accuracy: {best_trial.value:.4f}")
+    logging.info(f"Best trial accuracy: {best_trial.value:.4f} (from {best_trial.state.name} trial)")
     logging.info(f"Best parameters: {best_params}")
+    if best_trial.state == optuna.trial.TrialState.PRUNED:
+        logging.info(f"Best trial was pruned at epoch {list(best_trial.intermediate_values.keys())[-1]}")
+    logging.info(f"Total trials: {len(study.trials)}, Completed: {len(completed_trials)}, " 
+                f"Pruned: {len(pruned_trials)} ({len([t for t in pruned_trials if t.value is not None])} with valid results)")
     logging.info(f"Best configuration saved to {config_path}")
     logging.info(f"Search results saved to {results_path}")
 
@@ -128,6 +160,11 @@ def objective(trial: optuna.Trial, base_config: DictConfig) -> float:
         trial_config = create_trial_config(trial, base_config)
         
         # Initialize model and trainer
+        # mock model and trainer
+        # model = MockModel(trial_config)
+        # trainer = MockTrainer(trial_config)
+
+        # Real model and trainer
         model = create_model_from_config(trial_config)
         trainer = Trainer(trial_config)
         
@@ -154,7 +191,7 @@ def objective(trial: optuna.Trial, base_config: DictConfig) -> float:
         raise  
 
 
-@hydra.main(config_path="config", config_name="hyper_search_config")
+@hydra.main(config_path="config", config_name="hyper_search_config", version_base="1.1")
 def main(cfg: DictConfig):
     # Set up logging
     logging.info(f"Starting hyperparameter search for {cfg.search_space.optimizer.name}")
@@ -176,8 +213,7 @@ def main(cfg: DictConfig):
     )
     
     # Save results and plots
-    output_dir = hydra.core.hydra_config.HydraConfig.get().output_dir
-    save_best_config(study, cfg, output_dir)
+    save_best_config(study, cfg)
     # plot_optimization_history(study, output_dir)
 
 if __name__ == "__main__":

@@ -27,56 +27,124 @@ python write_datasets.py --data.dataset cifar10
 ```
 .
 ├── config/
-│   ├── config.yaml            # Main configuration
+│   ├── config.yaml                # Main configuration
 │   ├── dataset/
-│   │   ├── cifar10.yaml      # CIFAR-10 dataset config
-│   │   └── cifar100.yaml     # CIFAR-100 dataset config
-│   └── model/
-│       └── default.yaml      # Model architecture config
-├── data/                     # Dataset directory
-├── models.py                 # Model implementations
-├── train.py                  # Training script
-├── write_datasets.py         # Dataset conversion script
-├── environment.yml          # Environment specification
+│   │   ├── cifar10.yaml          # CIFAR-10 dataset config
+│   │   └── cifar100.yaml         # CIFAR-100 dataset config
+│   ├── model/
+│   │   └── default.yaml          # Model architecture config
+│   ├── search_space/
+│   │   ├── adamw.yaml            # AdamW hyperparameter search space
+│   │   └── sgd.yaml              # SGD hyperparameter search space
+│   ├── model_search_config.yaml   # Model architecture search config
+│   └── hyper_search_config.yaml   # Hyperparameter search config
+├── data/                         # Dataset directory
+├── models/                       # Model implementations
+├── train.py                      # Training script
+├── hyper_search.py              # Hyperparameter optimization
+├── model_search.py              # Model architecture search
+├── mock_model.py                # Mock models for debugging
+├── write_datasets.py            # Dataset conversion script
+├── environment.yml              # Environment specification
 └── README.md
 ```
 
 ## Training
 
-To train with default configuration:
+Basic training with default configuration:
 ```bash
 python train.py
 ```
 
-To train with ffcv configuration as in https://docs.ffcv.io/ffcv_examples/cifar10.html
+Training with FFCV configuration:
 ```bash
 python train.py model=ffcv training=ffcv
 ```
 
-To do hyperparameter search: (using SGD optimizer):
+## Model Architecture Search
+
+The project includes a comprehensive model architecture search framework in `model_search.py`. It supports various experiments defined in `config/model_search_config.yaml`:
+
+1. Meta-learner architecture study:
 ```bash
-python train.py search_space=sgd
+python model_search.py run_experiment=meta_learner_study
 ```
 
-Common configuration overrides:
-- `training.batch_size`: Batch size for training
-- `training.lr`: Learning rate
-- `training.epochs`: Number of training epochs
-- `model.alpha`: Weight for base learner loss
-- `model.meta_learner.hidden_dims`: Architecture of meta-learner MLP
-- `model.meta_learner.dropout_rate`: Dropout rate in meta-learner
+2. Loss weighting study:
+```bash
+python model_search.py run_experiment=alpha_study
+```
 
-## Model Architecture
+3. Initialization strategy study:
+```bash
+python model_search.py run_experiment=init_study
+```
 
-The model consists of:
-1. Multiple base learners (ResNet variants)
-2. Image feature extractor
-3. Meta-learner that combines base predictions with image features
+4. Model scaling studies:
+```bash
+python model_search.py run_experiment=homogeneous_scale_study
+python model_search.py run_experiment=fixed_param_scale_study
+```
 
-The current implementation uses:
-- Three ResNet models (ResNet18, ResNet34, ResNet50) as base learners
-- A custom CNN for image feature extraction
-- An MLP-based meta-learner with configurable architecture
+To run all experiments:
+```bash
+python model_search.py
+```
+
+### Configuring Experiments
+
+Experiments are defined in `config/model_search_config.yaml`. Each experiment type has variants that specify different configurations to test. Example structure:
+
+```yaml
+experiments:
+  meta_learner_study:
+    variants:
+      - name: "single_layer"
+        hidden_dims: [512]
+      - name: "two_layer"
+        hidden_dims: [512, 256]
+
+  alpha_study:
+    variants:
+      - name: "alpha_0.3"
+        value: 0.3
+      - name: "alpha_1.0"
+        value: 1.0
+```
+
+## Hyperparameter Optimization
+
+Run hyperparameter search with specific optimizer:
+```bash
+python hyper_search.py search_space=sgd  # or search_space=adamw
+```
+
+Search spaces are defined in `config/search_space/`:
+- `sgd.yaml`: Search space for SGD optimizer
+- `adamw.yaml`: Search space for AdamW optimizer
+
+## Debugging with Mock Models
+
+For debugging experiments without running full training, use the mock implementations in `mock_model.py`:
+
+1. In `model_search.py`, replace the model and trainer creation:
+```python
+# Replace these lines:
+model = create_model_from_config(trial_config)
+trainer = Trainer(trial_config)
+
+# With mock versions:
+model = MockModel(trial_config)
+trainer = MockTrainer(trial_config)
+```
+
+2. In `hyper_search.py`, similar replacements can be made in the objective function.
+
+The mock implementations simulate training behavior with realistic accuracy curves and training times, making them useful for:
+- Testing experiment configurations
+- Debugging search logic
+- Validating metrics tracking
+- Testing WandB integration
 
 ## Monitoring
 
@@ -86,15 +154,55 @@ Training progress is logged to WandB (Weights & Biases) with the following metri
 - Individual base learner losses
 - Meta-learner loss
 
-## Files Used for Training
+## Results Analysis
 
-Make sure these files exist in your data directory:
-- `data/cifar10_train.ffcv`: Training dataset
-- `data/cifar10_val.ffcv`: Validation dataset
+After running experiments, results are saved in:
+- `outputs/model_search/[DATE]/[TIME]/experiment_results/`
+- `outputs/hyper_search/[OPTIMIZER]/[DATE]/[TIME]/`
 
-## Notes
+Each experiment generates:
+- Training history plots
+- Hyperparameter distribution analysis
+- Detailed JSON results
+- Model statistics
 
-- The project uses Hydra for configuration management
-- FFCV is used for fast data loading
-- Training supports mixed precision and distributed training via Accelerate
-- WandB is used for experiment tracking
+### Generating Result Reports
+
+The project includes a report generation script that creates formatted markdown reports from experiment results:
+
+```bash
+# Generate reports from latest experiment run
+python generate_result_table.py
+
+# Generate reports from specific run
+python generate_result_table.py "2024-12-13/14-30-00"  # Format: "YYYY-MM-DD/HH-MM-SS"
+```
+
+Reports are generated for each experiment type:
+- Homogeneous scaling study
+- Fixed parameter scaling study
+- Meta-learner architecture study
+- Alpha (loss weight) study
+- Initialization strategy study
+
+Reports include:
+- Configuration comparison tables
+- Efficiency metrics for scaling studies
+- Training time and accuracy statistics
+- Model architecture details
+
+Generated reports are saved in the `reports/` directory with filenames like:
+- `homogeneous_scale_study_report.md`
+- `meta_learner_study_report.md`
+- etc.
+
+## Common Configuration Overrides
+
+- `training.batch_size`: Batch size for training
+- `training.lr`: Learning rate
+- `training.epochs`: Number of training epochs
+- `model.alpha`: Weight for base learner loss
+- `model.meta_learner.hidden_dims`: Architecture of meta-learner MLP
+- `model.meta_learner.dropout_rate`: Dropout rate in meta-learner
+- `optuna.n_trials`: Number of trials for hyperparameter search
+- `optuna.timeout`: Maximum search time in seconds

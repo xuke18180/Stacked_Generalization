@@ -16,7 +16,7 @@ project:
   notes: "Hyperparameter optimization"
 
 optuna:
-  n_trials: 100
+  n_trials: 2
   timeout: 72000  # 20 hours
   n_startup_trials: 5
   n_warmup_steps: 20
