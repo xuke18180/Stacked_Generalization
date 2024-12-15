@@ -72,6 +72,9 @@ class ExperimentManager:
         elif experiment_type == "homogeneous_scale_study" or experiment_type == "fixed_param_scale_study":
             config.model.base_learners = variant["base_learners"]
         
+        elif experiment_type == "image_features_dim_study":
+            config.model.image_features_dim = variant["value"]
+        
         return config
     
     def run_trials(self,

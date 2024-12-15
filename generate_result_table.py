@@ -46,6 +46,14 @@ class ResultsProcessor:
         """Load all results for a specific experiment type"""
         exp_dir = self.base_dir / experiment_type
         results = {}
+        if not exp_dir.exists():
+            raise FileNotFoundError(f"No results directory found for experiment type '{experiment_type}' at {exp_dir}")
+            
+        # Check if directory is empty
+        variant_dirs = list(exp_dir.glob("*"))
+        if not variant_dirs:
+            raise FileNotFoundError(f"No variant directories found for experiment type '{experiment_type}'")
+
         
         for variant_dir in exp_dir.glob("*"):
             if variant_dir.is_dir():
@@ -54,6 +62,7 @@ class ResultsProcessor:
                         results[variant_dir.name] = json.load(f)
                 except FileNotFoundError:
                     print(f"No results found for {variant_dir}")
+                    
                     
         return results
     
@@ -64,9 +73,16 @@ class ResultsProcessor:
         # Extract relevant metrics
         data = []
         for variant_name, result in results.items():
+            # Get parameter count
+            total_params = result.get('model_stats', {}).get('total_params', 0)
+            # Format parameter count in millions
+            if total_params > 0:
+                param_count = f"{total_params/1e6:.2f}M"
+            else:
+                param_count = 'N/A'
             data.append({
                 'Configuration': variant_name,
-                # 'Total Parameters': result.get('model_stats', {}).get('total_params', 'N/A'),
+                'Total Parameters': param_count,
                 'Training Time (s)': f"{np.mean(result['trial_times']):.1f} ± {np.std(result['trial_times']):.1f}",
                 'Final Accuracy (%)': f"{np.mean(result['trial_accuracies']):.2f} ± {np.std(result['trial_accuracies']):.2f}"
             })

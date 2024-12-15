@@ -11,16 +11,16 @@ hydra:
 
 project:
   name: "stacked-generalization-model-search"
-  tags: ["complete-experiment-v1"]
-  notes: "Systematic model architecture exploration"
+  tags: ["complete-experiment-v2"]
+  notes: "More range on alpha and initialization methods"
 
 # Base configuration that will be modified for each experiment
 model:
   meta_learner:
-    hidden_dims: [512, 256]
+    hidden_dims: [512, 256, 128]
     dropout_rate: 0.5
-  alpha: 1.0
-  init_method: "kaiming_fan_out"
+  alpha: 3.0
+  init_method: "xavier_uniform"
   base_learners:
     - architecture: "resnet9"
       pretrained: false
@@ -32,23 +32,27 @@ model:
 
 # Experiment configurations
 experiments:
-  meta_learner_study:
-    variants:
-      - name: "single_layer"
-        hidden_dims: [512]
-      - name: "two_layer"
-        hidden_dims: [512, 256]
-      - name: "three_layer"
-        hidden_dims: [512, 256, 128]
+  # meta_learner_study:
+  #   variants:
+  #     - name: "single_layer"
+  #       hidden_dims: [512]
+  #     - name: "two_layer"
+  #       hidden_dims: [512, 256]
+  #     - name: "three_layer"
+  #       hidden_dims: [512, 256, 128]
   
   alpha_study:
     variants:
+      - name: "alpha_0.1"
+        value: 0.1
       - name: "alpha_0.3"
         value: 0.3
       - name: "alpha_1.0"
         value: 1.0
       - name: "alpha_3.0"
         value: 3.0
+      - name: "alpha_10.0"
+        value: 10.0
   
   init_study:
     variants:
@@ -58,72 +62,76 @@ experiments:
         method: "orthogonal"
       - name: "xavier_uniform"
         method: "xavier_uniform"
+      - name: "xavier_normal"
+        method: "xavier_normal"
+      - name: "kaiming_fan_in"
+        method: "kaiming_fan_in"
   
-  homogeneous_scale_study:
-    variants:
-      - name: "1x_resnet9"
-        base_learners:
-          - architecture: "resnet9"
-            pretrained: false
-      - name: "3x_resnet9"
-        base_learners:
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-      - name: "9x_resnet9"
-        base_learners:
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
+  # homogeneous_scale_study:
+  #   variants:
+  #     - name: "1x_resnet9"
+  #       base_learners:
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #     - name: "3x_resnet9"
+  #       base_learners:
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #     - name: "9x_resnet9"
+  #       base_learners:
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
   
-  fixed_param_scale_study:
-    variants:
-      - name: "3x_resnet9"
-        base_learners:
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-          - architecture: "resnet9"
-            pretrained: false
-      - name: "2x_resnet18"
-        base_learners:
-          - architecture: "resnet18"
-            pretrained: false
-          - architecture: "resnet18"
-            pretrained: false
-      - name: "1x_resnet34"
-        base_learners:
-          - architecture: "resnet34"
-            pretrained: false
+  # fixed_param_scale_study:
+  #   variants:
+  #     - name: "3x_resnet9"
+  #       base_learners:
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #         - architecture: "resnet9"
+  #           pretrained: false
+  #     - name: "2x_resnet18"
+  #       base_learners:
+  #         - architecture: "resnet18"
+  #           pretrained: false
+  #         - architecture: "resnet18"
+  #           pretrained: false
+  #     - name: "1x_resnet34"
+  #       base_learners:
+  #         - architecture: "resnet34"
+  #           pretrained: false
 
 # Hyperparameter search settings
 optuna:
   n_trials: 10
   timeout: 72000  # 20 hours
   n_startup_trials: 3
-  n_warmup_steps: 15
+  n_warmup_steps: 10
   pruning:
     min_delta: 0.1
     patience: 5
 
 # Optional: specify which experiment to run
-run_experiment: "alpha_study"  # Uncomment to run specific experiment
+# run_experiment: "alpha_study"  # Uncomment to run specific experiment

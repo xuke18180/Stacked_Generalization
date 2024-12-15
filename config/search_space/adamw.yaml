@@ -3,12 +3,12 @@ optimizer:
   name: "adamw"  # fixed
   lr:
     type: "float"
-    low: 1e-5
-    high: 1e-3
+    low: 1e-4
+    high: 5e-3
     log: true
   weight_decay:
     type: "float"
-    low: 1e-5
+    low: 1e-4
     high: 1e-2
     log: true
 
@@ -18,5 +18,5 @@ scheduler:
     choices: ["onecycle", "cosine", "linear"]
   pct_start:
     type: "float"
-    low: 0.2
+    low: 0.1
     high: 0.4

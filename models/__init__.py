@@ -78,6 +78,9 @@ class BaseLearner(nn.Module):
                     nn.init.orthogonal_(m.weight, gain=1.0)
                 elif self.config.init_method == 'xavier_uniform':
                     nn.init.xavier_uniform_(m.weight) 
+                elif self.config.init_method == 'xavier_normal':
+                    nn.init.xavier_normal_(m.weight)
+                    
         
 
     
