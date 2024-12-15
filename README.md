@@ -91,6 +91,11 @@ To run all experiments:
 python model_search.py
 ```
 
+5. Run ViT experiments:
+```bash
+python model_search.py --config-name model_search_config_vit
+```
+
 ### Configuring Experiments
 
 Experiments are defined in `config/model_search_config.yaml`. Each experiment type has variants that specify different configurations to test. Example structure:

@@ -5,29 +5,78 @@ from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
 from omegaconf import DictConfig
 from .resnet9 import ResNet9
+from torchvision.models import ViT_B_16_Weights, vit_b_16
 
 @dataclass
 class BaseModelConfig:
     """Configuration for base learners"""
     architecture: str
     pretrained: bool = False
-    init_method: Optional[str] = "kaiming_fan_out"
+    init_method: Optional[str] = None
     init_params: Optional[Dict] = None
+    freeze_layers: int = 0  # New parameter for layer freezing
 
 def get_base_model(architecture, pretrained, num_classes):
-    # Handle ResNet9 specially
+    """Create base model with updated ViT support"""
+    # Handle ResNet9
     if architecture == "resnet9":
         return ResNet9(num_classes=num_classes)
     
-    # For all other architectures, use torchvision models
+    # Handle ViT
+    if architecture == "vit_b_16":
+        weights = ViT_B_16_Weights.DEFAULT if pretrained else None
+        model = vit_b_16(weights=weights)
+        if num_classes != 1000:  # If not using ImageNet classes
+            model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+        return model
+    
+    # Handle ResNet family and other torchvision models
     if hasattr(models, architecture):
         weights = 'DEFAULT' if pretrained else None
-        return getattr(models, architecture)(
-            weights=weights,
-            num_classes=num_classes
-        )
-    
+        model = getattr(models, architecture)(weights=weights)
+        
+        # Modify final layer based on architecture type
+        if num_classes != 1000:  # If not using ImageNet classes
+            if architecture.startswith('resnet'):
+                # ResNet family
+                model.fc = nn.Linear(model.fc.in_features, num_classes)
+            elif architecture.startswith('densenet'):
+                # DenseNet family
+                model.classifier = nn.Linear(model.classifier.in_features, num_classes)
+            elif architecture.startswith('efficientnet'):
+                # EfficientNet family
+                model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
+            elif architecture.startswith('convnext'):
+                # ConvNeXt family
+                model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
+            else:
+                # Generic approach for other architectures
+                try:
+                    if hasattr(model, 'fc'):
+                        model.fc = nn.Linear(model.fc.in_features, num_classes)
+                    elif hasattr(model, 'classifier'):
+                        if isinstance(model.classifier, nn.Linear):
+                            model.classifier = nn.Linear(model.classifier.in_features, num_classes)
+                        else:
+                            model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, num_classes)
+                except AttributeError as e:
+                    raise ValueError(f"Unable to modify classification head for architecture {architecture}: {str(e)}")
+        
+        return model
+        
     raise ValueError(f"Unknown architecture: {architecture}")
+
+def freeze_layers(model, num_layers):
+    """Freeze specified number of transformer layers in ViT"""
+    if num_layers == -1:  # Freeze everything except classifier
+        for name, param in model.named_parameters():
+            if 'head' not in name:  # 'head' is classifier in ViT
+                param.requires_grad = False
+    elif num_layers > 0:
+        # Freeze encoder blocks up to num_layers
+        for i in range(num_layers):
+            for param in model.encoder.layers[i].parameters():
+                param.requires_grad = False
 
 @dataclass
 class MetaLearnerConfig:
@@ -60,11 +109,15 @@ class BaseLearner(nn.Module):
                     bias=False
                 )
                 base_model.conv1 = new_conv
+
+        self.is_vit = config.architecture.startswith("vit")
+        if config.pretrained and config.freeze_layers > 0:
+            freeze_layers(base_model, config.freeze_layers)
             
         self.model = base_model
         
         # Apply custom initialization if specified
-        if config.init_method:
+        if config.init_method and not config.pretrained:
             self._initialize_weights()
     
     def _initialize_weights(self):
@@ -85,6 +138,8 @@ class BaseLearner(nn.Module):
 
     
     def forward(self, x):
+        if self.is_vit:
+            x = torch.nn.functional.interpolate(x, size=(224, 224), mode='bilinear',align_corners=False)
         return self.model(x)
 
 class ImageFeatureExtractor(nn.Module):
@@ -234,7 +289,8 @@ def create_model_from_config(cfg: DictConfig) -> StackedModel:
             architecture=model_cfg.architecture,
             pretrained=model_cfg.pretrained,
             init_method=model_cfg.get('init_method'),
-            init_params=model_cfg.get('init_params')
+            init_params=model_cfg.get('init_params'),
+            freeze_layers=model_cfg.get('freeze_layers', 0)
         )
         for model_cfg in cfg.model.base_learners
     ]

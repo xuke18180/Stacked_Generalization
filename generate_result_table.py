@@ -193,7 +193,8 @@ def main():
         "fixed_param_scale_study", 
         "meta_learner_study",
         "alpha_study",
-        "init_study"
+        "init_study",
+        "image_features_dim_study"
     ]
     
     for exp_type in experiment_types:

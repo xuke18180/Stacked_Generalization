@@ -1,0 +1,94 @@
+# config/model_search_config_vit.yaml
+defaults:
+  - _self_
+  - dataset: cifar10
+  - search_space: vit_adamw
+  - training: vit
+
+hydra:
+  run:
+    dir: outputs/vit_model_search/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+project:
+  name: "stacked-generalization-vit-search"
+  tags: ["vit-stack-v1"]
+  notes: "Exploring ViT in stacked generalization"
+
+# Base configuration with default model stack
+model:
+  base_learners:
+    - architecture: "vit_b_16"
+      pretrained: true
+    - architecture: "resnet9"
+      pretrained: false
+    - architecture: "resnet18"
+      pretrained: true
+  meta_learner:
+    hidden_dims: [256, 128]  # More reasonable size for logits + image features
+    dropout_rate: 0.5
+  alpha: 1.0
+  image_features_dim: 256
+
+experiments:
+  stack_composition_study:
+    variants:
+      - name: "diverse_stack"
+        base_learners:
+          - architecture: "vit_b_16"
+            pretrained: true
+          - architecture: "resnet9"
+            pretrained: false
+          - architecture: "resnet34"
+            pretrained: true
+      - name: "lightweight_stack"
+        base_learners:
+          - architecture: "vit_b_16"
+            pretrained: true
+          - architecture: "resnet9"
+            pretrained: false
+          - architecture: "resnet9"
+            pretrained: false
+
+  finetuning_strategy_study:
+    variants:
+      - name: "all_finetune"
+        freeze_layers: 0
+      - name: "partial_freeze"
+        freeze_layers: 8  # Will apply to pretrained models only
+      - name: "mixed_freeze"
+        base_learners:  # Need to specify when mixing different freeze strategies
+          - architecture: "vit_b_16"
+            pretrained: true
+            freeze_layers: 8
+          - architecture: "resnet9"
+            pretrained: false
+          - architecture: "resnet18"
+            pretrained: true
+            freeze_layers: 0
+
+  meta_architecture_study:
+    variants:
+      - name: "original_meta"
+        meta_learner:
+          hidden_dims: [256, 128]
+          dropout_rate: 0.5
+      - name: "deep_meta"
+        meta_learner:
+          hidden_dims: [256, 128, 64]
+          dropout_rate: 0.5
+      - name: "lightweight_meta"
+        meta_learner:
+          hidden_dims: [128]
+          dropout_rate: 0.3
+
+optuna:
+  n_trials: 5  # Increased from 10 since each trial will be shorter
+  timeout: 72000  # Reduced to 10 hours since training is faster
+  n_startup_trials: 2  # Slightly increased to get better baseline for pruning
+  n_warmup_steps: 3    # Reduced since ViT converges faster
+  pruning:
+    min_delta: 0.1     # This is good
+    patience: 3        # Reduced from 5 since we expect faster convergence/plateau
+
+# Optional: specify which experiment to run
+# run_experiment: "stack_composition_study"

@@ -1,0 +1,22 @@
+# config/search_space/vit_adamw.yaml
+optimizer:
+  name: "adamw"  # fixed
+  lr:
+    type: "float"
+    low: 1e-5
+    high: 1e-4  # Lower learning rate range for pretrained ViT
+    log: true
+  weight_decay:
+    type: "float"
+    low: 1e-4
+    high: 1e-2
+    log: true
+
+scheduler:
+  name:
+    type: "categorical"
+    choices: ["onecycle", "cosine"]
+  pct_start:
+    type: "float"
+    low: 0.1
+    high: 0.4
