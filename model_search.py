@@ -47,6 +47,12 @@ def get_model_stats(model, input_size=(3, 32, 32)):
         print(f"Error generating model summary: {str(e)}")
         return None
 
+@dataclass
+class ExperimentMetadata:
+    """Structured config for experiment metadata"""
+    experiment_type: str
+    variant_name: str
+
 class ExperimentManager:
     def __init__(self, cfg: DictConfig, output_dir: str):
         self.cfg = cfg
@@ -57,25 +63,76 @@ class ExperimentManager:
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
     def get_experiment_config(self, experiment_type: str, variant: dict) -> Dict:
-        """Create specific experiment configuration"""
-        config = deepcopy(self.cfg)
+        """Create specific experiment configuration with metadata tracking"""
+        # Create a new config that includes metadata
+        base_config = OmegaConf.to_container(self.cfg, resolve=True)
         
-        if experiment_type == "meta_learner_study":
-            config.model.meta_learner.hidden_dims = variant["hidden_dims"]
+        # Create metadata
+        metadata = ExperimentMetadata(
+            experiment_type=experiment_type,
+            variant_name=variant["name"]
+        )
         
-        elif experiment_type == "alpha_study":
-            config.model.alpha = variant["value"]
+        # Add metadata to config
+        base_config["experiment_metadata"] = OmegaConf.structured(metadata)
         
-        elif experiment_type == "init_study":
-            config.model.init_method = variant["method"]
-            
-        elif experiment_type == "homogeneous_scale_study" or experiment_type == "fixed_param_scale_study":
+        # Convert back to DictConfig
+        config = OmegaConf.create(base_config)
+        
+        # Automatically update all fields present in the variant
+        def update_config_recursive(config_section, variant_section):
+            for key, value in variant_section.items():
+                if isinstance(value, dict) and key in config_section:
+                    # Recursively handle nested configurations
+                    update_config_recursive(config_section[key], value)
+                else:
+                    # Update the value directly
+                    config_section[key] = value
+        
+        # Handle special case where variant defines complete base_learners list
+        if "base_learners" in variant:
             config.model.base_learners = variant["base_learners"]
         
-        elif experiment_type == "image_features_dim_study":
-            config.model.image_features_dim = variant["value"]
+        # Handle all other fields by recursively updating the config
+        for key, value in variant.items():
+            if key != "name":  # Skip the name field
+                if key in config.model:
+                    if isinstance(value, dict):
+                        update_config_recursive(config.model[key], value)
+                    else:
+                        config.model[key] = value
         
         return config
+
+    def validate_experiment_config(self, experiment_type: str, variant: dict) -> List[str]:
+        """Validate experiment configuration and return any warnings"""
+        warnings = []
+        
+        # Check for required fields
+        required_fields = ["name"]
+        missing_fields = [field for field in required_fields if field not in variant]
+        if missing_fields:
+            warnings.append(f"Missing required fields: {missing_fields}")
+        
+        # Validate base_learners configuration if present
+        if "base_learners" in variant:
+            for i, learner in enumerate(variant["base_learners"]):
+                required_learner_fields = ["architecture"]
+                missing_learner_fields = [
+                    field for field in required_learner_fields 
+                    if field not in learner
+                ]
+                if missing_learner_fields:
+                    warnings.append(
+                        f"Base learner {i} missing required fields: {missing_learner_fields}"
+                    )
+        
+        # Validate meta_learner configuration if present
+        if "meta_learner" in variant:
+            if "hidden_dims" not in variant["meta_learner"]:
+                warnings.append("Meta learner configuration missing hidden_dims")
+        
+        return warnings
     
     def run_trials(self,
                   config_updates: DictConfig,
@@ -212,6 +269,7 @@ class ExperimentManager:
         
         for variant in exp_config.variants:
             config = self.get_experiment_config(experiment_type, variant)
+            warnings = self.validate_experiment_config(experiment_type, variant)
             result = self.run_trials(
                 config,
                 experiment_type,
@@ -350,8 +408,29 @@ class ExperimentManager:
 def main(cfg: DictConfig):
     # Get experiment type from command line
     experiment_type = cfg.get("run_experiment", None)
+
+    def test_experiment_configs():
+        manager = ExperimentManager(cfg, "test_results")
+        for exp_type in cfg.experiments:
+            for variant in cfg.experiments[exp_type].variants:
+                # Should not raise any exceptions
+                warnings = manager.validate_experiment_config(exp_type, variant)
+                
+                variant_name = variant["name"] if "name" in variant else "Unnamed"
+                if warnings:
+                    logging.warning(
+                        f"Configuration warnings for {experiment_type}/{variant_name}:\n" +
+                        "\n".join(f"- {w}" for w in warnings)
+                    )
+                config = manager.get_experiment_config(exp_type, variant)
+                logging.info(f"Generated model configuration for {exp_type}/{variant_name}:\n{OmegaConf.to_yaml(config.model)}")
+
     
     manager = ExperimentManager(cfg, "experiment_results")
+
+    # to test the experiment configurations
+    # test_experiment_configs()
+
     
     if experiment_type:
         # Run specific experiment

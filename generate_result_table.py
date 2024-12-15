@@ -174,6 +174,94 @@ class ResultsProcessor:
         with open(output_path / f"{experiment_type}_report.md", "w") as f:
             f.write(report)
 
+    def create_latex_table(self, experiment_type: str, caption: str = None, label: str = None):
+        """Create LaTeX table for experiment results"""
+        results = self.load_experiment_results(experiment_type)
+        
+        # Extract relevant metrics
+        data = []
+        for variant_name, result in results.items():
+            params = result.get('model_stats', {}).get('total_params', 'N/A')
+            params_str = f"{params/1e6:.2f}M" if isinstance(params, (int, float)) else 'N/A'
+            
+            data.append({
+                'Configuration': variant_name,
+                'Final Accuracy (\\%)': f"{np.mean(result['trial_accuracies']):.2f} ± {np.std(result['trial_accuracies']):.2f}",
+                'Total Parameters': params_str,
+                'Training Time (s)': f"{np.mean(result['trial_times']):.1f} ± {np.std(result['trial_times']):.1f}",
+            })
+        
+        # Create DataFrame and sort by configuration name
+        df = pd.DataFrame(data)
+        df = df.sort_values('Configuration')
+        
+        # Generate LaTeX table
+        columns = list(df.columns)
+        n_cols = len(columns)
+        
+        # Start LaTeX table
+        latex_lines = [
+            "\\begin{table}",
+            "    \\centering"
+        ]
+        
+        # Create tabular environment line correctly
+        tabular_cols = 'c' * n_cols
+        latex_lines.append(f"    \\begin{{tabular}}{{{tabular_cols}}}")
+        
+        # Add column headers
+        latex_lines.append("        " + " & ".join(columns) + " \\\\")
+        
+        # Add data rows
+        for _, row in df.iterrows():
+            latex_lines.append("        " + " & ".join(str(val) for val in row.values) + " \\\\")
+        
+        # Add caption and label if provided
+        latex_lines.extend([
+            "    \\end{tabular}"
+        ])
+        
+        if caption:
+            latex_lines.append(f"    \\caption{{{caption}}}")
+        if label:
+            latex_lines.append(f"    \\label{{{label}}}")
+        
+        latex_lines.append("\\end{table}")
+        
+        return "\n".join(latex_lines)
+
+    def save_latex_tables(self, output_dir: str = "reports"):
+        """Save LaTeX tables for all experiment types"""
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        experiment_types = {
+            "homogeneous_scale_study": ("Homogeneous Scaling Results", "tab:homogeneous_scale"),
+            "fixed_param_scale_study": ("Fixed Parameter Budget Results", "tab:fixed_param_scale"),
+            "meta_learner_study": ("Meta-learner Architecture Results", "tab:meta_learner"),
+            "alpha_study": ("Loss Weighting Results", "tab:alpha"),
+            "init_study": ("Initialization Strategy Results", "tab:init"),
+            "image_features_dim_study": ("Image Features Dimension Study", "tab:image_features_dim")
+        }
+        
+        latex_tables = []
+        for exp_type, (caption, label) in experiment_types.items():
+            try:
+                latex_table = self.create_latex_table(exp_type, caption, label)
+                latex_tables.append(latex_table)
+                
+                # Save individual table
+                with open(output_path / f"{exp_type}_table.tex", "w") as f:
+                    f.write(latex_table)
+                
+                print(f"Generated LaTeX table for {exp_type}")
+            except FileNotFoundError:
+                print(f"No results found for {exp_type}")
+        
+        # Save all tables to a single file
+        # with open(output_path / "all_tables.tex", "w") as f:
+        #     f.write("\n\n".join(latex_tables))
+
 def main():
     import argparse
     
@@ -188,21 +276,24 @@ def main():
     processor = ResultsProcessor(args.run_id)
     
     # Process all experiment types
-    experiment_types = [
-        "homogeneous_scale_study",
-        "fixed_param_scale_study", 
-        "meta_learner_study",
-        "alpha_study",
-        "init_study",
-        "image_features_dim_study"
-    ]
+    # experiment_types = [
+    #     "homogeneous_scale_study",
+    #     "fixed_param_scale_study", 
+    #     "meta_learner_study",
+    #     "alpha_study",
+    #     "init_study",
+    #     "image_features_dim_study"
+    # ]
     
-    for exp_type in experiment_types:
-        try:
-            processor.save_report(exp_type)
-            print(f"Generated report for {exp_type}")
-        except FileNotFoundError:
-            print(f"No results found for {exp_type}")
+    # for exp_type in experiment_types:
+    #     try:
+    #         processor.save_report(exp_type)
+    #         print(f"Generated report for {exp_type}")
+    #     except FileNotFoundError:
+    #         print(f"No results found for {exp_type}")
+
+    # Generate LaTeX tables
+    processor.save_latex_tables()
 
 if __name__ == "__main__":
     main()

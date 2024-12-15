@@ -11,7 +11,7 @@ hydra:
 
 project:
   name: "stacked-generalization-vit-search"
-  tags: ["vit-stack-v1"]
+  tags: ["vit-stack-v2"]
   notes: "Exploring ViT in stacked generalization"
 
 # Base configuration with default model stack
@@ -68,10 +68,6 @@ experiments:
 
   meta_architecture_study:
     variants:
-      - name: "original_meta"
-        meta_learner:
-          hidden_dims: [256, 128]
-          dropout_rate: 0.5
       - name: "deep_meta"
         meta_learner:
           hidden_dims: [256, 128, 64]
@@ -91,4 +87,4 @@ optuna:
     patience: 3        # Reduced from 5 since we expect faster convergence/plateau
 
 # Optional: specify which experiment to run
-# run_experiment: "stack_composition_study"
+run_experiment: "stack_composition_study"
