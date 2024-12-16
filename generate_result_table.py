@@ -275,7 +275,7 @@ def main():
     # Initialize processor with provided run_id or None for latest
     processor = ResultsProcessor(args.run_id)
     
-    # Process all experiment types
+    # Generate Markdown reports 
     # experiment_types = [
     #     "homogeneous_scale_study",
     #     "fixed_param_scale_study", 

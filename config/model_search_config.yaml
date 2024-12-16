@@ -41,18 +41,18 @@ experiments:
   #     - name: "three_layer"
   #       hidden_dims: [512, 256, 128]
   
-  # alpha_study:
-  #   variants:
-  #     - name: "alpha_0.1"
-  #       value: 0.1
-  #     - name: "alpha_0.3"
-  #       value: 0.3
-  #     - name: "alpha_1.0"
-  #       value: 1.0
-  #     - name: "alpha_3.0"
-  #       value: 3.0
-  #     - name: "alpha_10.0"
-  #       value: 10.0
+  alpha_study:
+    variants:
+      - name: "alpha_0.1"
+        value: 0.1
+      - name: "alpha_0.3"
+        value: 0.3
+      - name: "alpha_1.0"
+        value: 1.0
+      - name: "alpha_3.0"
+        value: 3.0
+      - name: "alpha_10.0"
+        value: 10.0
   
   # init_study:
   #   variants:
@@ -134,4 +134,4 @@ optuna:
     patience: 5
 
 # Optional: specify which experiment to run
-# run_experiment: "alpha_study"  # Uncomment to run specific experiment
+run_experiment: null  

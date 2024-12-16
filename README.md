@@ -119,7 +119,7 @@ experiments:
 
 ## Hyperparameter Optimization
 
-Run hyperparameter search with specific optimizer:
+Run hyperparameter search with specific optimizer (this is not used to generate result because its functionality is covered by model_search.py. If you want to do hyperparameter search for a specific model configuration, then you can use this.):
 ```bash
 python hyper_search.py search_space=sgd  # or search_space=adamw
 ```
@@ -173,7 +173,7 @@ Each experiment generates:
 
 ### Generating Result Reports
 
-The project includes a report generation script that creates formatted markdown reports from experiment results:
+The project includes a report generation script that creates formatted LateX (or markdown reports - uncomment some lines in the main() function) from experiment results:
 
 ```bash
 # Generate reports from latest experiment run
@@ -189,6 +189,7 @@ Reports are generated for each experiment type:
 - Meta-learner architecture study
 - Alpha (loss weight) study
 - Initialization strategy study
+- image features extractor output dimension study
 
 Reports include:
 - Configuration comparison tables
@@ -200,6 +201,14 @@ Generated reports are saved in the `reports/` directory with filenames like:
 - `homogeneous_scale_study_report.md`
 - `meta_learner_study_report.md`
 - etc.
+
+### Generating Visualizations of Experiment Results
+You can also generate visualization of the studies you run for given experiment:
+```bash
+# Generate reports from specific run
+python visualization.py "2024-12-13/14-30-00"  # Format: "YYYY-MM-DD/HH-MM-SS"
+```
+This will create a new folder "visualizations/" for the plots.
 
 ## Common Configuration Overrides
 
