@@ -46,6 +46,8 @@ python write_datasets.py --data.dataset cifar10
 ├── mock_model.py                # Mock models for debugging
 ├── write_datasets.py            # Dataset conversion script
 ├── environment.yml              # Environment specification
+├── generate_result_table.py     # Generate result table in latex
+├── visualization.py             # Visualize experiment results
 └── README.md
 ```
 
