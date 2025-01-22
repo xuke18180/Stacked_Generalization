@@ -27,3 +27,5 @@ checkpoints/
 visualizations_cifar10/
 test.ipynb
 test_scheduler.py
+
+docs/

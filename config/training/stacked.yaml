@@ -1,0 +1,49 @@
+# Extends default.yaml but adds stacking-specific parameters
+defaults:
+  - ffcv
+
+# for debugging
+# epochs: 1
+
+n_folds: 5
+save_fold_models: false  # Whether to save models from each fold
+fold_model_dir: "fold_models"
+
+# Test-time options
+test_ensemble_method: "all_folds"  # or "best_fold" or "weighted"
+
+# Model saving options
+save_intermediate: false  # Whether to save models during training
+checkpoint_frequency: 5   # Save every N epochs 
+
+# Training optimization
+patience: 10  # Early stopping patience
+gradient_clip: 1.0  # Gradient clipping value
+
+# Metrics and logging
+log_batch_frequency: 100  # Log every N batches
+track_prediction_stability: true  # Whether to compute prediction stability metrics
+confidence_temperature: 0.1  # Temperature for confidence calibration 
+
+# Meta-learner specific settings
+meta_learner:
+  optimizer:  # Separate optimizer settings
+    name: "sgd"
+    lr: 0.1  # Higher learning rate typical for SGD
+    weight_decay: 5e-4  # Reduced weight decay for SGD
+    momentum: 0.9
+    nesterov: true
+    
+  scheduler:  # Separate scheduler settings
+    name: "onecycle"  # Changed to OneCycleLR which works well with SGD
+    pct_start: 0.3
+    div_factor: 25.0
+    final_div_factor: 1e4
+    
+  epochs: 100  # Can be different from base model training
+  batch_size: 128  # Optional separate batch size
+  gradient_clip: 0.0  # Optional separate gradient clipping 
+  patience: 10  # Early stopping patience
+
+# Add these fields to your existing stacked.yaml configuration
+save_level1_data: true  # Whether to save level1 training data

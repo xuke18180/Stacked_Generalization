@@ -98,6 +98,11 @@ python model_search.py
 python model_search.py --config-name model_search_config_vit
 ```
 
+6. Run Stacked Generalization experiments with cross validation:
+```bash
+python train.py training=stacked
+```
+
 ### Configuring Experiments
 
 Experiments are defined in `config/model_search_config.yaml`. Each experiment type has variants that specify different configurations to test. Example structure:
